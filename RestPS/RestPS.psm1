@@ -18,4 +18,10 @@ foreach ($folder in @('classes', 'private', 'public', 'includes', 'internal'))
     }
 }
 
+#Set the location for logging output
+$Script:LogsPath = "$env:ScriptsPath\Logs\RestPS"
+If (!(Test-Path -Path $Script:LogsPath)) {
+	New-Item -Path $Script:LogsPath -ItemType "directory"
+}
+
 Export-ModuleMember -function (Get-ChildItem -Path "$PSScriptRoot\public\*.ps1").basename

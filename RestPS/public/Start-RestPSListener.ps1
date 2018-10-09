@@ -45,8 +45,9 @@ function Start-RestPSListener
         [Parameter()][String]$SSLThumbprint,
         [Parameter()][String]$AppGuid = ((New-Guid).Guid),
         [ValidateSet("VerifyRootCA", "VerifySubject", "VerifyUserAuth")]
-        [Parameter()][String]$VerificationType
-    )
+        [Parameter()][String]$VerificationType,
+		[Parameter()][Switch]$EnableLogging
+	)
     # Set a few Flags
     $script:Status = $true
     $script:ValidateClient = $true
@@ -67,12 +68,16 @@ function Start-RestPSListener
             if ($VerificationType -ne "")
             {
                 Get-ClientCertInfo
-                Write-Output "Validating Client CN: $script:SubjectName"
+                $msg = "Validating Client CN: $script:SubjectName"
+                Write-Output $msg
+                $msg | Out-File $Script:LogsPath\Listener.log -Append
                 $script:ProcessRequest = (Invoke-ValidateClient -VerificationType $VerificationType -RestPSLocalRoot $RestPSLocalRoot)
             }
             else
             {
-                Write-Output "Not Validating Client"
+                $msg = "Not Validating Client"
+                Write-Output $msg
+                $msg | Out-File $Script:LogsPath\Listener.log -Append
                 $script:ProcessRequest = $true
             }
 
@@ -87,10 +92,14 @@ function Start-RestPSListener
 
             if ($script:ProcessRequest -eq $true)
             {
+
+
                 # Break from loop if GET request sent to /shutdown
                 if ($RequestURL -match '/EndPoint/Shutdown$')
                 {
-                    Write-Output "Received Request to shutdown Endpoint."
+                    $msg = "Received Request to shutdown Endpoint."
+                    Write-Output $msg
+                    $msg | Out-File $Script:LogsPath\Listener.log -Append
                     $script:result = "Shutting down ReST Endpoint."
                     $script:Status = $false
                     $script:HttpCode = 200
@@ -98,7 +107,16 @@ function Start-RestPSListener
                 else
                 {
                     # Attempt to process the Request.
-                    Write-Output "Processing RequestType: $RequestType URL: $RequestURL Args: $RequestArgs"
+                    $msg = "Processing RequestType: $RequestType URL: $RequestURL Args: $RequestArgs"
+#                    Write-Output $msg
+                    $msg | Out-File $Script:LogsPath\Listener.log -Append
+
+
+                    $checkedDate = Get-Date -format "dd-MMM-yyyy HH:mm:ss"
+                    $msg = "Started processing: $checkedDate"
+ #                   Write-Output $msg
+                    $msg | Out-File $Script:LogsPath\Listener.log -Append
+
                     if ($RoutesFilePath -eq "null")
                     {
                         $RoutesFilePath = "Invoke-AvailableRouteSet"
@@ -108,7 +126,9 @@ function Start-RestPSListener
             }
             else
             {
-                Write-Output "Not Processing RequestType: $RequestType URL: $RequestURL Args: $RequestArgs"
+                $msg = "Not Processing RequestType: $RequestType URL: $RequestURL Args: $RequestArgs"
+#                Write-Output $msg
+                $msg | Out-File $Script:LogsPath\Listener.log -Append
                 $script:result = "401 Client failed Verification or Authentication"
             }
             # Setup a placeholder to deliver a response
@@ -116,12 +136,20 @@ function Start-RestPSListener
             # Convert the returned data to JSON and set the HTTP content type to JSON
             $script:Response.ContentType = 'application/json'
             $script:Response.StatusCode = 200
-            # Stream the output back to requestor.
-            Invoke-StreamOutput
+			
+			# If the EnableLogging switch is set, log output
+            # Otherwise, stream it back to requestor.
+			if ($EnableLogging){
+				Invoke-LogOutput
+			}
+			else {
+				Invoke-StreamOutput
+			}
         } while ($script:Status -eq $true)
         #Terminate the listener
         Invoke-StopListener -Port $Port
-        Write-Output "Listener Stopped"
+        "Listener Stopped" | Out-File $Script:LogsPath\Listener.log -Append
+        # Write-Output "Listener Stopped"
     }
     else
     {
